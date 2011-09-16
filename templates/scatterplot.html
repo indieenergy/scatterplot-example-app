@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+        "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+    <title>Scatter Plot</title>
+
+    <style>
+        
+        html {
+            cursor: default;
+            color: white;
+        }
+        
+        div.plot_window {
+            margin: 40px 0px;
+            width: 900px;
+            height: 240px;
+            float: left;
+        }
+        
+        ul {
+            list-style-type: none;
+        }
+
+    </style>
+    
+    <!--[if IE]><script src="{{ STATIC_URL }}js/excanvas.js"></script><![endif]-->
+    <script type="text/javascript" src="{{ STATIC_URL }}js/jquery-1.5.1.min.js"></script>
+    <script type="text/javascript" src="{{ STATIC_URL }}js/jquery-ui-1.8.12.custom.min.js"></script>
+    <script type="text/javascript" src="{{ STATIC_URL }}js/jquery.flot.js"></script>
+    <script type="text/javascript" src="{{ STATIC_URL }}js/date.js"></script>
+    <script type="text/javascript" src="{{ STATIC_URL }}js/geopod.js"></script>
+    
+    <script type="text/javascript">
+        
+        $(document).ready(function() {
+            
+            var points = [{% for point in points %}'{{ point.id }}'{% if not forloop.last %},{% endif %}{% endfor %}];
+            var start = '{{ start }}';
+            var end = '{{ end }}';
+            var plot;
+            var slider;
+            var data_series = [];
+            var x_axis;
+            var y_axis;
+            
+            function drawGraph(x_axis, y_axis, start, end) {
+                $('#points_list').slideUp();
+
+                var query_string_dict = {
+                    subdomain: '{{ geopod.subdomain }}',
+                    x_axis: x_axis,
+                    y_axis: y_axis,
+                    start: start,
+                    end: end
+                };
+                
+                $.get('{% url scatterplot_data %}', query_string_dict, function(data) {
+                    $('div#plot_container').html('');
+                    data_series = [];
+
+                    var start = Date.parse(data.start_date).getTime() - data.utc_offset;
+                    var end = Date.parse(data.end_date + " 23:59:59").getTime() - data.utc_offset;
+                    var min = Infinity;
+                    var max = -Infinity;
+                    
+                    for( var i=0, len=data.series.length; i<len; ++i ) {
+                        data_series.push({
+                            label: data.series[i].name,
+                            data: data.series[i].data,
+                            hoverable: false,
+                            clickable: false,
+                            series_id: data.series[i].point_id,
+                            unit: data.series[i].unit
+                        });
+                    }
+                    
+                    var options = {
+                        /*
+                        xaxis: {
+                            mode: "time",
+                            twelveHourClock: false,
+                            min:  start,
+                            max: end
+                        },
+                        */
+                        points: { show: true },
+                        yaxis: {
+                            labelWidth: 75,
+                            
+                        },
+                        grid: {
+                            tickColor: "#252525",
+                            color: "#FFFFFF",
+                            borderWidth: 0,
+                            hoverable: true,
+                            clickable: true
+                        },
+                        legend: {
+                            show: true,
+                            backgroundOpacity: 0,
+                            noColumns: 8,
+                        },
+                    };
+                    
+                    $('#plot_container').append('<div class="plot_window"></div>');
+
+                    var placeholder = $('div#plot_container div.plot_window');
+                    plot = $.plot(placeholder, data_series, options);
+                    
+                    var height = document.documentElement.clientHeight+500;
+                    geopod.setSize({height:height});
+                }, "json");
+            }
+            
+            /*drawGraph(points, start, end);*/
+            
+            $('.building_point').click(function(){
+                /* if checking */
+                if ($(this).attr('checked')) {
+                    /* don't do anything if x and y already set  */
+                    if (x_axis != null && y_axis != null){
+                        return;
+                    }
+                    
+                    if (x_axis == null){
+                        x_axis = $(this).attr('point_id');
+                        return;
+                    }
+                
+                    if (y_axis == null){
+                        y_axis = $(this).attr('point_id');
+                        drawGraph(x_axis, y_axis);
+                    }
+                }
+                /* if unchecking */
+                else {
+                    /* don't do anything when extra boxes checked */
+                    if ($('.building_point').filter(":checked").length >= 2){
+                        return;
+                    }
+                                        
+                    if (y_axis != null){
+                        y_axis = null;
+                        return;
+                    }
+                    if (x_axis != null){
+                        x_axis = null;
+                        return;
+                    }
+                }
+            });
+            
+            $('#points_link').click(function(){
+                console.log($('#points_list').is(':visible'));
+                if( $('#points_list').is(':visible') ) {
+                    $('#points_list').slideUp();
+                }
+                else {
+                    $('#points_list').slideDown();
+                }
+
+                return false;
+            });
+        });
+        
+        
+    </script>
+    
+</head>
+
+<body>
+    <a href="#" id="points_link">Points &darr;</a>
+    <ul id="points_list">
+    {% for point in points %}
+        <li>
+        <label for="id_{{ point.id }}" style="display:block; float:left; margin-right: 12px;">
+            <input type="checkbox" value="{{ point.id }}" name="points" class="building_point" id="id_{{ point.id }}" point_id="{{ point.id }}"> {{ point.name }}
+        </label>
+        </li>
+    {% endfor %}
+    </ul>
+
+    
+    <br/><br/>
+    <div id="plot_container" style="width:600px; height:400px;"></div>
+</body>
+</html>
